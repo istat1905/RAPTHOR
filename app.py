@@ -18,15 +18,25 @@ st.markdown("---")
 with st.sidebar:
     st.header("🔐 Identifiants Auchan")
     
-    # Utiliser les secrets Streamlit si disponibles, sinon inputs manuels
+    # Utiliser les secrets Streamlit ou variables d'environnement
+    import os
+    
+    # Essayer d'abord les secrets Streamlit, puis les variables d'environnement
+    username = None
+    password = None
+    
     if "auchan_username" in st.secrets and "auchan_password" in st.secrets:
         username = st.secrets["auchan_username"]
         password = st.secrets["auchan_password"]
         st.success("✅ Identifiants chargés depuis les secrets")
+    elif os.getenv("auchan_username") and os.getenv("auchan_password"):
+        username = os.getenv("auchan_username")
+        password = os.getenv("auchan_password")
+        st.success("✅ Identifiants chargés depuis l'environnement")
     else:
         username = st.text_input("Identifiant", key="username")
         password = st.text_input("Mot de passe", type="password", key="password")
-        st.info("💡 Configurez vos secrets dans Streamlit pour plus de sécurité")
+        st.info("💡 Configurez vos secrets pour plus de sécurité")
 
 # Zone principale
 col1, col2 = st.columns([2, 1])

@@ -15,28 +15,19 @@ st.title("🦅 RAPTHOR - Automatisation Auchan")
 st.markdown("---")
 
 # Sidebar pour les identifiants
+import os
+
 with st.sidebar:
     st.header("🔐 Identifiants Auchan")
     
-    # Utiliser les secrets Streamlit ou variables d'environnement
-    import os
+    # Utiliser les variables d'environnement de Render
+    username = os.getenv("auchan_username")
+    password = os.getenv("auchan_password")
     
-    # Essayer d'abord les secrets Streamlit, puis les variables d'environnement
-    username = None
-    password = None
-    
-    if "auchan_username" in st.secrets and "auchan_password" in st.secrets:
-        username = st.secrets["auchan_username"]
-        password = st.secrets["auchan_password"]
-        st.success("✅ Identifiants chargés depuis les secrets")
-    elif os.getenv("auchan_username") and os.getenv("auchan_password"):
-        username = os.getenv("auchan_username")
-        password = os.getenv("auchan_password")
-        st.success("✅ Identifiants chargés depuis l'environnement")
+    if username and password:
+        st.success("✅ Identifiants configurés")
     else:
-        username = st.text_input("Identifiant", key="username")
-        password = st.text_input("Mot de passe", type="password", key="password")
-        st.info("💡 Configurez vos secrets pour plus de sécurité")
+        st.error("❌ Variables d'environnement manquantes sur Render")
 
 # Zone principale
 col1, col2 = st.columns([2, 1])

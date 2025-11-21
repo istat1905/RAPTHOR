@@ -4,6 +4,7 @@ FROM python:3.11-slim
 # Installer les dépendances système nécessaires pour Playwright
 RUN apt-get update && apt-get install -y \
     wget \
+    curl \
     gnupg \
     ca-certificates \
     fonts-liberation \
@@ -25,6 +26,11 @@ RUN apt-get update && apt-get install -y \
     libxkbcommon0 \
     libxrandr2 \
     xdg-utils \
+    libx11-xcb1 \
+    libxcb1 \
+    libxcursor1 \
+    libxi6 \
+    libxtst6 \
     && rm -rf /var/lib/apt/lists/*
 
 # Définir le répertoire de travail
@@ -36,19 +42,17 @@ COPY requirements.txt .
 # Installer les dépendances Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Installer les navigateurs Playwright
-RUN playwright install firefox
-RUN playwright install-deps firefox
-
 # Copier le reste des fichiers de l'application
 COPY . .
+
+# Installer les navigateurs Playwright ET leurs dépendances
+RUN playwright install --with-deps firefox
 
 # Exposer le port 8501 (port par défaut de Streamlit)
 EXPOSE 8501
 
-# Créer un utilisateur non-root pour la sécurité
-RUN useradd -m -u 1000 streamlituser && chown -R streamlituser:streamlituser /app
-USER streamlituser
+# Variable d'environnement pour Playwright
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 # Commande pour lancer l'application
 CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]

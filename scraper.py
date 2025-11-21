@@ -1,4 +1,3 @@
-# scraper.py
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -10,20 +9,14 @@ from datetime import datetime, timedelta
 import time
 
 def fetch_desadv_auchan(username, password):
-    """
-    Récupère les DESADV Auchan pour la date de demain,
-    filtre les montants >= 850€, et regroupe par client.
-    """
-    # Config Firefox
     options = Options()
-    options.add_argument("--headless")  # mode invisible, retirer si tu veux voir le navigateur
+    options.add_argument("--headless")  # mode invisible
     options.add_argument("--width=1920")
     options.add_argument("--height=1080")
 
     driver = webdriver.Firefox(service=Service(GeckoDriverManager().install()), options=options)
 
     try:
-        # Aller sur la page login
         driver.get("https://auchan.atgpedi.net/gui.php?page=accueil")
         time.sleep(2)
 
@@ -50,7 +43,7 @@ def fetch_desadv_auchan(username, password):
         data = []
         for row in rows:
             cols = row.find_elements(By.TAG_NAME, "td")
-            if len(cols) >= 5:  # vérifier selon la structure du tableau
+            if len(cols) >= 5:
                 desadv = cols[0].text.strip()
                 client = cols[1].text.strip()
                 montant_text = cols[4].text.strip().replace("€","").replace(" ","").replace(",",".")
@@ -61,7 +54,6 @@ def fetch_desadv_auchan(username, password):
                 if montant >= 850:
                     data.append({"DESADV": desadv, "Client": client, "Montant": montant})
 
-        # Regrouper par client et sommer les montants
         df = pd.DataFrame(data)
         if not df.empty:
             df = df.groupby("Client", as_index=False).agg({
@@ -70,10 +62,6 @@ def fetch_desadv_auchan(username, password):
             })
 
         return df
-
-    except Exception as e:
-        print("Erreur Selenium:", e)
-        return pd.DataFrame()
 
     finally:
         driver.quit()

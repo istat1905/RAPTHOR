@@ -38,17 +38,9 @@ class AuchanScraper:
             page = context.new_page()
             
             try:
-                # 1. Aller sur la page d'accueil
-                print(f"Connexion à {self.base_url}/index.php")
-                page.goto(f"{self.base_url}/index.php", timeout=30000)
-                page.wait_for_load_state('networkidle')
-                time.sleep(2)
-                
-                # 2. Cliquer sur "M'identifier avec mon compte @GP"
-                print("Clic sur le bouton de connexion @GP...")
-                page.click('a.btn-outline-atgp')
-                
-                # Attendre la redirection vers la page de connexion
+                # 1. Aller directement sur la page de connexion @GP
+                print(f"Connexion à la page de login @GP...")
+                page.goto("https://accounts.atgpedi.net/login", timeout=30000)
                 page.wait_for_load_state('networkidle')
                 time.sleep(2)
                 

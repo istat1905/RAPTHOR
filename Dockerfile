@@ -32,7 +32,6 @@ RUN apt-get update && apt-get install -y \
     libxi6 \
     libxtst6 \
     libglib2.0-0 \
-    libnss3 \
     libxss1 \
     && rm -rf /var/lib/apt/lists/*
 
@@ -45,17 +44,14 @@ COPY requirements.txt .
 # Installer les dépendances Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copier le reste des fichiers de l'application
-COPY . .
-
-# Installer Chromium avec toutes ses dépendances
+# Installer Chromium et ses dépendances AVANT de copier les fichiers
 RUN playwright install --with-deps chromium
+
+# Copier le reste des fichiers de l'application APRES l'installation de Playwright
+COPY . .
 
 # Exposer le port 8501 (port par défaut de Streamlit)
 EXPOSE 8501
-
-# Variable d'environnement pour Playwright
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 # Commande pour lancer l'application
 CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]

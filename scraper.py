@@ -69,22 +69,49 @@ class AuchanScraper:
                 page.wait_for_load_state('networkidle')
                 time.sleep(2)
                 
-                # 7. Saisir la date dans le champ de recherche - CORRECTION ICI
+                # 7. Saisir la date dans le champ de recherche
                 print(f"Saisie de la date: {date_str}")
-                # Utiliser le bon nom de champ: doDateHeureCreation
-                date_input = page.locator('input[name="doDateHeureCreation"]')
-                date_input.click()
-                date_input.fill('')  # Vider d'abord
-                date_input.type(date_str, delay=100)  # Taper avec un petit délai
                 
-                # Cliquer sur le bouton de recherche (icône loupe)
-                # Chercher le bouton avec la classe search_button
-                search_button = page.locator('td.search_button')
+                # Attendre que le tableau et les filtres soient chargés
+                page.wait_for_selector('table.VL', timeout=10000)
+                page.wait_for_selector('tr.search', timeout=10000)
+                time.sleep(2)
+                
+                # Utiliser le champ "Livrer le" (doDateHeureDemandee) pour chercher les commandes
+                # C'est le champ qui correspond à la date de livraison
+                print("Recherche du champ de date de livraison...")
+                
+                # Attendre que le champ soit visible et interactif
+                date_input = page.locator('input[name="doDateHeureDemandee"]')
+                date_input.wait_for(state="visible", timeout=10000)
+                
+                # Effacer le contenu actuel et saisir la nouvelle date
+                print(f"Remplissage avec: {date_str}")
+                date_input.click()
+                
+                # Triple-clic pour tout sélectionner puis supprimer
+                date_input.click(click_count=3)
+                page.keyboard.press('Delete')
+                time.sleep(0.5)
+                
+                # Taper la nouvelle date
+                date_input.type(date_str, delay=50)
+                time.sleep(1)
+                
+                # Chercher et cliquer sur le bouton de recherche (loupe)
+                print("Clic sur le bouton de recherche...")
+                
+                # Le bouton est dans un td avec la classe search_button
+                search_button = page.locator('td.search_button button.cleaner')
                 if search_button.count() > 0:
-                    search_button.click()
+                    search_button.first.click()
+                    print("✅ Bouton de recherche cliqué")
                 else:
-                    # Alternative: presser Enter
-                    date_input.press('Enter')
+                    # Alternative: appuyer sur Tab puis Enter
+                    date_input.press('Tab')
+                    time.sleep(0.5)
+                    page.keyboard.press('Enter')
+                    print("✅ Enter pressé")
                 
                 # Attendre le chargement des résultats
                 print("Attente des résultats...")

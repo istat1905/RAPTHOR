@@ -31,6 +31,9 @@ RUN apt-get update && apt-get install -y \
     libxcursor1 \
     libxi6 \
     libxtst6 \
+    libglib2.0-0 \
+    libnss3 \
+    libxss1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Définir le répertoire de travail
@@ -45,8 +48,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copier le reste des fichiers de l'application
 COPY . .
 
-# Installer les navigateurs Playwright ET leurs dépendances
-RUN playwright install --with-deps firefox
+# Installer Chromium avec toutes ses dépendances
+RUN playwright install --with-deps chromium
 
 # Exposer le port 8501 (port par défaut de Streamlit)
 EXPOSE 8501

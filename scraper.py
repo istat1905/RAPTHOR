@@ -69,13 +69,22 @@ class AuchanScraper:
                 page.wait_for_load_state('networkidle')
                 time.sleep(2)
                 
-                # 7. Saisir la date dans le champ de recherche
+                # 7. Saisir la date dans le champ de recherche - CORRECTION ICI
                 print(f"Saisie de la date: {date_str}")
-                date_input = page.locator('input[name="doDateHeureDemandee"]')
+                # Utiliser le bon nom de champ: doDateHeureCreation
+                date_input = page.locator('input[name="doDateHeureCreation"]')
                 date_input.click()
                 date_input.fill('')  # Vider d'abord
                 date_input.type(date_str, delay=100)  # Taper avec un petit délai
-                date_input.press('Enter')
+                
+                # Cliquer sur le bouton de recherche (icône loupe)
+                # Chercher le bouton avec la classe search_button
+                search_button = page.locator('td.search_button')
+                if search_button.count() > 0:
+                    search_button.click()
+                else:
+                    # Alternative: presser Enter
+                    date_input.press('Enter')
                 
                 # Attendre le chargement des résultats
                 print("Attente des résultats...")

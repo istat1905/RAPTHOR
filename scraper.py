@@ -50,46 +50,26 @@ class AuchanScraper:
                 
                 # Attendre la redirection vers la page de connexion
                 page.wait_for_load_state('networkidle')
-                time.sleep(3)
+                time.sleep(2)
                 
-                # 3. Remplir les champs de connexion (la structure peut varier)
+                # 3. Remplir les champs de connexion
                 print("Saisie des identifiants...")
+                page.fill('input[name="_username"]', self.username)
+                page.fill('input[name="_password"]', self.password)
                 
-                # Essayer plusieurs sélecteurs possibles pour l'identifiant
-                try:
-                    page.fill('input[name="login"]', self.username)
-                except:
-                    try:
-                        page.fill('input[type="text"]', self.username)
-                    except:
-                        page.fill('input#username', self.username)
-                
-                # Essayer plusieurs sélecteurs possibles pour le mot de passe
-                try:
-                    page.fill('input[name="password"]', self.password)
-                except:
-                    try:
-                        page.fill('input[type="password"]', self.password)
-                    except:
-                        page.fill('input#password', self.password)
-                
-                # 4. Cliquer sur le bouton de connexion
+                # 4. Cliquer sur le bouton "Se connecter"
                 print("Validation de la connexion...")
-                try:
-                    page.click('button[type="submit"]')
-                except:
-                    try:
-                        page.click('input[type="submit"]')
-                    except:
-                        page.press('input[type="password"]', 'Enter')
+                page.click('button:has-text("Se connecter")')
                 
                 # Attendre que la connexion soit effective
                 page.wait_for_load_state('networkidle')
                 time.sleep(3)
                 
-                # 5. Vérifier qu'on est bien connecté
-                if "login" in page.url.lower() or "authentification" in page.url.lower():
+                # 5. Vérifier qu'on est bien connecté (on doit voir "Bonjour" ou être redirigé)
+                if "login" in page.url.lower():
                     raise Exception("Échec de connexion - Vérifiez vos identifiants")
+                
+                print("✅ Connexion réussie!")
                 
                 # 6. Aller sur la page Commandes
                 print("Navigation vers Commandes...")
@@ -97,15 +77,16 @@ class AuchanScraper:
                 page.wait_for_load_state('networkidle')
                 time.sleep(2)
                 
-                # 7. Saisir la date
+                # 7. Saisir la date dans le champ de recherche
                 print(f"Saisie de la date: {date_str}")
                 date_input = page.locator('input[name="doDateHeureDemandee"]')
                 date_input.click()
                 date_input.fill('')  # Vider d'abord
-                date_input.fill(date_str)
+                date_input.type(date_str, delay=100)  # Taper avec un petit délai
                 date_input.press('Enter')
                 
                 # Attendre le chargement des résultats
+                print("Attente des résultats...")
                 page.wait_for_load_state('networkidle')
                 time.sleep(3)
                 
@@ -120,17 +101,20 @@ class AuchanScraper:
                     resultats["total_par_client"] = self._calculer_total_par_client(commandes)
                     resultats["success"] = True
                     resultats["message"] = f"{len(commandes)} commandes trouvées pour le {date_str}"
+                    print(f"✅ {len(commandes)} commandes extraites")
                 else:
-                    resultats["message"] = "Aucune commande trouvée"
+                    resultats["message"] = "Aucune commande trouvée pour cette date"
+                    print("⚠️ Aucune commande trouvée")
                 
             except Exception as e:
                 resultats["message"] = f"Erreur: {str(e)}"
-                print(f"Erreur durant le scraping: {e}")
+                print(f"❌ Erreur durant le scraping: {e}")
                 
                 # Prendre une capture d'écran pour déboguer
                 try:
-                    page.screenshot(path="/tmp/error_screenshot.png")
-                    print("Capture d'écran sauvegardée pour débogage")
+                    screenshot_path = f"/tmp/error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                    page.screenshot(path=screenshot_path)
+                    print(f"📸 Capture d'écran sauvegardée: {screenshot_path}")
                 except:
                     pass
                 
@@ -146,25 +130,56 @@ class AuchanScraper:
         
         try:
             # Attendre que le tableau soit présent
-            page.wait_for_selector('table', timeout=5000)
+            page.wait_for_selector('table tbody tr', timeout=5000)
             
-            # Extraire toutes les lignes du tableau
+            # Extraire toutes les lignes du tableau (tbody tr)
             rows = page.locator('table tbody tr').all()
             
-            for row in rows:
-                cells = row.locator('td').all()
-                if len(cells) >= 4:  # Ajuster selon la structure réelle
-                    commande = {
-                        "numero": cells[0].inner_text().strip(),
-                        "client": cells[1].inner_text().strip(),
-                        "montant": self._parse_montant(cells[2].inner_text().strip()),
-                        "statut": cells[3].inner_text().strip() if len(cells) > 3 else "",
-                        "desadv": "DESADV" in row.inner_text().upper() or "desadv" in row.inner_text().lower()
-                    }
-                    commandes.append(commande)
+            print(f"Nombre de lignes trouvées: {len(rows)}")
+            
+            for i, row in enumerate(rows):
+                try:
+                    cells = row.locator('td').all()
+                    
+                    if len(cells) >= 7:  # D'après l'image 3, il y a plusieurs colonnes
+                        # Colonnes visibles: Numéro, Client, Livrer à, Création le, Livrer le, GLN, Montant, Statut
+                        numero = cells[0].inner_text().strip()
+                        client = cells[1].inner_text().strip()
+                        livrer_a = cells[2].inner_text().strip() if len(cells) > 2 else ""
+                        creation = cells[3].inner_text().strip() if len(cells) > 3 else ""
+                        livraison = cells[4].inner_text().strip() if len(cells) > 4 else ""
+                        gln = cells[5].inner_text().strip() if len(cells) > 5 else ""
+                        montant_str = cells[6].inner_text().strip() if len(cells) > 6 else "0"
+                        statut = cells[7].inner_text().strip() if len(cells) > 7 else ""
+                        
+                        # Parser le montant
+                        montant = self._parse_montant(montant_str)
+                        
+                        # Vérifier si DESADV nécessaire (chercher dans toute la ligne)
+                        row_text = row.inner_text()
+                        desadv = "desadv" in row_text.lower() or "DESADV" in row_text
+                        
+                        commande = {
+                            "numero": numero,
+                            "client": client,
+                            "livrer_a": livrer_a,
+                            "date_creation": creation,
+                            "date_livraison": livraison,
+                            "gln": gln,
+                            "montant": montant,
+                            "statut": statut,
+                            "desadv": desadv
+                        }
+                        
+                        commandes.append(commande)
+                        print(f"  ✓ Commande {i+1}: {numero} - {client} - {montant}€")
+                        
+                except Exception as e:
+                    print(f"  ⚠️ Erreur ligne {i+1}: {e}")
+                    continue
         
         except Exception as e:
-            print(f"Erreur extraction: {e}")
+            print(f"❌ Erreur extraction tableau: {e}")
         
         return commandes
     
@@ -172,9 +187,12 @@ class AuchanScraper:
         """Convertit un montant string en float"""
         try:
             # Enlever les espaces, € et remplacer , par .
-            montant_clean = montant_str.replace('€', '').replace(' ', '').replace(',', '.')
+            montant_clean = montant_str.replace('€', '').replace(' ', '').replace(',', '.').strip()
+            if not montant_clean:
+                return 0.0
             return float(montant_clean)
-        except:
+        except Exception as e:
+            print(f"  ⚠️ Erreur parsing montant '{montant_str}': {e}")
             return 0.0
     
     def _filtrer_desadv(self, commandes):

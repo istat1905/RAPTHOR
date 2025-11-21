@@ -34,32 +34,74 @@ class AuchanScraper:
                 headless=True,
                 args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
             )
-            page = browser.new_page()
+            context = browser.new_context()
+            page = context.new_page()
             
             try:
                 # 1. Aller sur la page d'accueil
-                print(f"Connexion à {self.base_url}/gui.php?page=accueil")
-                page.goto(f"{self.base_url}/gui.php?page=accueil", timeout=30000)
+                print(f"Connexion à {self.base_url}/index.php")
+                page.goto(f"{self.base_url}/index.php", timeout=30000)
+                page.wait_for_load_state('networkidle')
+                time.sleep(2)
                 
-                # 2. Se connecter
-                print("Connexion avec identifiants...")
-                page.fill('input[name="login"]', self.username)
-                page.fill('input[name="password"]', self.password)
-                page.click('button[type="submit"]')
+                # 2. Cliquer sur "M'identifier avec mon compte @GP"
+                print("Clic sur le bouton de connexion @GP...")
+                page.click('a.btn-outline-atgp')
+                
+                # Attendre la redirection vers la page de connexion
+                page.wait_for_load_state('networkidle')
+                time.sleep(3)
+                
+                # 3. Remplir les champs de connexion (la structure peut varier)
+                print("Saisie des identifiants...")
+                
+                # Essayer plusieurs sélecteurs possibles pour l'identifiant
+                try:
+                    page.fill('input[name="login"]', self.username)
+                except:
+                    try:
+                        page.fill('input[type="text"]', self.username)
+                    except:
+                        page.fill('input#username', self.username)
+                
+                # Essayer plusieurs sélecteurs possibles pour le mot de passe
+                try:
+                    page.fill('input[name="password"]', self.password)
+                except:
+                    try:
+                        page.fill('input[type="password"]', self.password)
+                    except:
+                        page.fill('input#password', self.password)
+                
+                # 4. Cliquer sur le bouton de connexion
+                print("Validation de la connexion...")
+                try:
+                    page.click('button[type="submit"]')
+                except:
+                    try:
+                        page.click('input[type="submit"]')
+                    except:
+                        page.press('input[type="password"]', 'Enter')
                 
                 # Attendre que la connexion soit effective
                 page.wait_for_load_state('networkidle')
-                time.sleep(2)
+                time.sleep(3)
                 
-                # 3. Cliquer sur Commandes
+                # 5. Vérifier qu'on est bien connecté
+                if "login" in page.url.lower() or "authentification" in page.url.lower():
+                    raise Exception("Échec de connexion - Vérifiez vos identifiants")
+                
+                # 6. Aller sur la page Commandes
                 print("Navigation vers Commandes...")
-                page.click('a[href="gui.php?page=documents_commandes_liste"]')
+                page.goto(f"{self.base_url}/gui.php?page=documents_commandes_liste", timeout=30000)
                 page.wait_for_load_state('networkidle')
                 time.sleep(2)
                 
-                # 4. Saisir la date
+                # 7. Saisir la date
                 print(f"Saisie de la date: {date_str}")
                 date_input = page.locator('input[name="doDateHeureDemandee"]')
+                date_input.click()
+                date_input.fill('')  # Vider d'abord
                 date_input.fill(date_str)
                 date_input.press('Enter')
                 
@@ -67,7 +109,7 @@ class AuchanScraper:
                 page.wait_for_load_state('networkidle')
                 time.sleep(3)
                 
-                # 5. Extraire les données du tableau
+                # 8. Extraire les données du tableau
                 print("Extraction des commandes...")
                 commandes = self._extraire_commandes(page)
                 
@@ -85,7 +127,15 @@ class AuchanScraper:
                 resultats["message"] = f"Erreur: {str(e)}"
                 print(f"Erreur durant le scraping: {e}")
                 
+                # Prendre une capture d'écran pour déboguer
+                try:
+                    page.screenshot(path="/tmp/error_screenshot.png")
+                    print("Capture d'écran sauvegardée pour débogage")
+                except:
+                    pass
+                
             finally:
+                context.close()
                 browser.close()
         
         return resultats
@@ -109,7 +159,7 @@ class AuchanScraper:
                         "client": cells[1].inner_text().strip(),
                         "montant": self._parse_montant(cells[2].inner_text().strip()),
                         "statut": cells[3].inner_text().strip() if len(cells) > 3 else "",
-                        "desadv": "DESADV à faire" in row.inner_text() if len(cells) > 4 else False
+                        "desadv": "DESADV" in row.inner_text().upper() or "desadv" in row.inner_text().lower()
                     }
                     commandes.append(commande)
         

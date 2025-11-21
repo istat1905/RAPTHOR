@@ -29,8 +29,8 @@ class AuchanScraper:
             date_str = demain.strftime("%d/%m/%Y")
         
         with sync_playwright() as p:
-            # Lancer le navigateur (headless=False pour voir ce qui se passe)
-            browser = p.firefox.launch(headless=False)
+            # Lancer le navigateur en mode headless pour Render.com
+            browser = p.firefox.launch(headless=True)
             page = browser.new_page()
             
             try:

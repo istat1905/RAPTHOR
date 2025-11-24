@@ -65,44 +65,106 @@ class AuchanScraper:
                 
                 # 6. Aller sur la page Commandes
                 print("Navigation vers Commandes...")
-                page.goto(f"{self.base_url}/gui.php?page=documents_commandes_liste", timeout=30000)
-                page.wait_for_load_state('networkidle')
-                time.sleep(3)
+                page.goto(f"{self.base_url}/gui.php?page=documents_commandes_liste", timeout=60000)
                 
-                # DEBUG: Prendre une capture d'écran pour voir l'état de la page
+                # Attendre plus longtemps le chargement complet
+                print("Attente du chargement complet de la page...")
+                page.wait_for_load_state('domcontentloaded')
+                time.sleep(3)
+                page.wait_for_load_state('networkidle', timeout=30000)
+                time.sleep(5)  # Attente supplémentaire pour les scripts JS
+                
+                # Prendre une capture d'écran pour debug
                 try:
-                    screenshot_path = f"/tmp/page_commandes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-                    page.screenshot(path=screenshot_path)
-                    print(f"📸 Capture page commandes: {screenshot_path}")
+                    page.screenshot(path="/tmp/page_after_load.png", full_page=True)
+                    print("📸 Capture d'écran: /tmp/page_after_load.png")
                 except:
                     pass
                 
-                # 7. Saisir la date dans le champ de recherche
-                print(f"Recherche du champ de date...")
+                # Debug: afficher l'URL actuelle et le titre
+                print(f"URL actuelle: {page.url}")
+                print(f"Titre de la page: {page.title()}")
                 
-                # Attendre que la page soit complètement chargée
-                page.wait_for_load_state('domcontentloaded')
-                time.sleep(2)
+                # 7. Chercher le champ de date avec plusieurs stratégies
+                print(f"Recherche du champ de date pour: {date_str}")
                 
-                # Trouver le champ de date
-                date_input = page.locator('input#doDateHeureDemandee')
-                date_input.wait_for(state='visible', timeout=10000)
+                date_input = None
                 
-                print(f"✓ Champ de date trouvé, saisie de: {date_str}")
-                date_input.click()
-                time.sleep(0.5)
+                # Stratégie 1: Attendre n'importe quel input dans la zone de recherche
+                try:
+                    print("Stratégie 1: Recherche par table...")
+                    page.wait_for_selector('table', timeout=15000)
+                    print("✅ Tableau trouvé")
+                except Exception as e:
+                    print(f"⚠️ Pas de tableau trouvé: {e}")
                 
-                # Vider le champ avec Ctrl+A puis Delete
-                date_input.press('Control+A')
-                date_input.press('Backspace')
-                time.sleep(0.5)
+                # Stratégie 2: Lister tous les inputs disponibles
+                print("Stratégie 2: Liste de tous les inputs...")
+                all_inputs = page.locator('input[type="text"]').all()
+                print(f"Nombre d'inputs text trouvés: {len(all_inputs)}")
                 
-                # Saisir la nouvelle date
-                date_input.type(date_str, delay=50)
-                time.sleep(0.5)
+                for i, inp in enumerate(all_inputs):
+                    try:
+                        name = inp.get_attribute('name')
+                        id_attr = inp.get_attribute('id')
+                        value = inp.get_attribute('value')
+                        print(f"  Input {i}: id='{id_attr}', name='{name}', value='{value}'")
+                        
+                        # Si on trouve le bon champ
+                        if name == 'doDateHeureDemandee' or id_attr == 'doDateHeureDemandee':
+                            date_input = inp
+                            print(f"✅ Champ de date trouvé à l'index {i}")
+                            break
+                    except Exception as e:
+                        print(f"  Erreur input {i}: {e}")
                 
-                # Appuyer sur Entrée pour valider
-                date_input.press('Enter')
+                if not date_input:
+                    # Stratégie 3: Utiliser l'URL directement avec paramètres
+                    print("⚠️ Impossible de trouver le champ, utilisation de l'URL avec paramètres...")
+                    
+                    # Construire l'URL avec les paramètres de recherche
+                    search_url = f"{self.base_url}/gui.php?page=documents_commandes_liste&doDateHeureDemandee={date_str}"
+                    print(f"Navigation vers: {search_url}")
+                    page.goto(search_url, timeout=60000)
+                    page.wait_for_load_state('networkidle', timeout=30000)
+                    time.sleep(5)
+                    
+                else:
+                    # Remplir le champ trouvé
+                    print(f"Remplissage du champ avec: {date_str}")
+                    
+                    try:
+                        # Scroller jusqu'au champ
+                        date_input.scroll_into_view_if_needed()
+                        time.sleep(0.5)
+                        
+                        # Cliquer et sélectionner
+                        date_input.click()
+                        time.sleep(0.5)
+                        
+                        # Sélectionner tout et effacer
+                        page.keyboard.press('Control+A')
+                        time.sleep(0.2)
+                        page.keyboard.press('Backspace')
+                        time.sleep(0.5)
+                        
+                        # Taper la date
+                        date_input.type(date_str, delay=100)
+                        time.sleep(1)
+                        
+                        print(f"✅ Date saisie: {date_str}")
+                        
+                        # Valider avec Enter
+                        page.keyboard.press('Enter')
+                        time.sleep(2)
+                        
+                    except Exception as e:
+                        print(f"⚠️ Erreur lors de la saisie: {e}")
+                        # Fallback sur l'URL
+                        search_url = f"{self.base_url}/gui.php?page=documents_commandes_liste&doDateHeureDemandee={date_str}"
+                        page.goto(search_url, timeout=60000)
+                        page.wait_for_load_state('networkidle', timeout=30000)
+                        time.sleep(5)
                 
                 # Attendre le chargement des résultats
                 print("Attente des résultats...")
@@ -148,11 +210,11 @@ class AuchanScraper:
         commandes = []
         
         try:
-            # Attendre que le tableau soit présent (classe "vL" avec L minuscule!)
-            page.wait_for_selector('table.vL tbody tr', timeout=10000)
+            # Attendre que le tableau soit présent
+            page.wait_for_selector('table tbody tr', timeout=5000)
             
             # Extraire toutes les lignes du tableau (tbody tr)
-            rows = page.locator('table.vL tbody tr').all()
+            rows = page.locator('table tbody tr').all()
             
             print(f"Nombre de lignes trouvées: {len(rows)}")
             
@@ -160,44 +222,39 @@ class AuchanScraper:
                 try:
                     cells = row.locator('td').all()
                     
-                    # Vérifier qu'on a assez de colonnes (ignorer les lignes vides ou de header)
-                    if len(cells) < 8:
-                        continue
-                    
-                    # Colonnes: Numéro, Client, Livrer à, Création le, Livrer le, GLN, Montant, Statut
-                    numero = cells[0].inner_text().strip()
-                    client = cells[1].inner_text().strip()
-                    livrer_a = cells[2].inner_text().strip()
-                    creation = cells[3].inner_text().strip()
-                    livraison = cells[4].inner_text().strip()
-                    gln = cells[5].inner_text().strip()
-                    montant_str = cells[6].inner_text().strip()
-                    
-                    # Le statut et les icônes sont dans la dernière colonne
-                    statut_cell = cells[7].inner_text().strip() if len(cells) > 7 else ""
-                    
-                    # Parser le montant
-                    montant = self._parse_montant(montant_str)
-                    
-                    # Vérifier si DESADV nécessaire (chercher dans toute la ligne ou dans les attributs)
-                    row_html = row.inner_html()
-                    desadv = "desadv" in row_html.lower()
-                    
-                    commande = {
-                        "numero": numero,
-                        "client": client,
-                        "livrer_a": livrer_a,
-                        "date_creation": creation,
-                        "date_livraison": livraison,
-                        "gln": gln,
-                        "montant": montant,
-                        "statut": statut_cell,
-                        "desadv": desadv
-                    }
-                    
-                    commandes.append(commande)
-                    print(f"  ✓ Commande {i+1}: {numero} - {client} - {montant}€")
-                    
+                    if len(cells) >= 7:  # D'après l'image 3, il y a plusieurs colonnes
+                        # Colonnes visibles: Numéro, Client, Livrer à, Création le, Livrer le, GLN, Montant, Statut
+                        numero = cells[0].inner_text().strip()
+                        client = cells[1].inner_text().strip()
+                        livrer_a = cells[2].inner_text().strip() if len(cells) > 2 else ""
+                        creation = cells[3].inner_text().strip() if len(cells) > 3 else ""
+                        livraison = cells[4].inner_text().strip() if len(cells) > 4 else ""
+                        gln = cells[5].inner_text().strip() if len(cells) > 5 else ""
+                        montant_str = cells[6].inner_text().strip() if len(cells) > 6 else "0"
+                        statut = cells[7].inner_text().strip() if len(cells) > 7 else ""
+                        
+                        # Parser le montant
+                        montant = self._parse_montant(montant_str)
+                        
+                        # Vérifier si DESADV nécessaire (chercher dans toute la ligne)
+                        row_text = row.inner_text()
+                        desadv = "desadv" in row_text.lower() or "DESADV" in row_text
+                        
+                        commande = {
+                            "numero": numero,
+                            "client": client,
+                            "livrer_a": livrer_a,
+                            "date_creation": creation,
+                            "date_livraison": livraison,
+                            "gln": gln,
+                            "montant": montant,
+                            "statut": statut,
+                            "desadv": desadv
+                        }
+                        
+                        commandes.append(commande)
+                        print(f"  ✓ Commande {i+1}: {numero} - {client} - {montant}€")
+                        
                 except Exception as e:
                     print(f"  ⚠️ Erreur ligne {i+1}: {e}")
                     continue

@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 from scraper import AuchanScraper
+import os
 
 # Configuration de la page
 st.set_page_config(
@@ -18,25 +19,15 @@ st.markdown("---")
 with st.sidebar:
     st.header("🔐 Identifiants Auchan")
     
-    # Utiliser les secrets Streamlit ou variables d'environnement
-    import os
+    # Utiliser les variables d'environnement de Render
+    username = os.getenv("auchan_username")
+    password = os.getenv("auchan_password")
     
-    # Essayer d'abord les secrets Streamlit, puis les variables d'environnement
-    username = None
-    password = None
-    
-    if "auchan_username" in st.secrets and "auchan_password" in st.secrets:
-        username = st.secrets["auchan_username"]
-        password = st.secrets["auchan_password"]
-        st.success("✅ Identifiants chargés depuis les secrets")
-    elif os.getenv("auchan_username") and os.getenv("auchan_password"):
-        username = os.getenv("auchan_username")
-        password = os.getenv("auchan_password")
-        st.success("✅ Identifiants chargés depuis l'environnement")
+    if username and password:
+        st.success("✅ Identifiants configurés")
     else:
-        username = st.text_input("Identifiant", key="username")
-        password = st.text_input("Mot de passe", type="password", key="password")
-        st.info("💡 Configurez vos secrets pour plus de sécurité")
+        st.error("❌ Variables d'environnement manquantes sur Render")
+        st.info("Configurez auchan_username et auchan_password dans Environment sur Render")
 
 # Zone principale
 st.header("📅 Commandes de la semaine")

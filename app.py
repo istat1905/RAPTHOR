@@ -15,49 +15,42 @@ st.title("🦅 RAPTHOR - Automatisation Auchan")
 st.markdown("---")
 
 # Sidebar pour les identifiants
-import os
-
 with st.sidebar:
     st.header("🔐 Identifiants Auchan")
     
-    # Utiliser les variables d'environnement de Render
-    username = os.getenv("auchan_username")
-    password = os.getenv("auchan_password")
+    # Utiliser les secrets Streamlit ou variables d'environnement
+    import os
     
-    if username and password:
-        st.success("✅ Identifiants configurés")
+    # Essayer d'abord les secrets Streamlit, puis les variables d'environnement
+    username = None
+    password = None
+    
+    if "auchan_username" in st.secrets and "auchan_password" in st.secrets:
+        username = st.secrets["auchan_username"]
+        password = st.secrets["auchan_password"]
+        st.success("✅ Identifiants chargés depuis les secrets")
+    elif os.getenv("auchan_username") and os.getenv("auchan_password"):
+        username = os.getenv("auchan_username")
+        password = os.getenv("auchan_password")
+        st.success("✅ Identifiants chargés depuis l'environnement")
     else:
-        st.error("❌ Variables d'environnement manquantes sur Render")
+        username = st.text_input("Identifiant", key="username")
+        password = st.text_input("Mot de passe", type="password", key="password")
+        st.info("💡 Configurez vos secrets pour plus de sécurité")
 
 # Zone principale
-col1, col2 = st.columns([2, 1])
+st.header("📅 Commandes de la semaine")
+st.info("📆 Semaine en cours : du 24/11/2025 au 30/11/2025")
+
+col1, col2 = st.columns(2)
 
 with col1:
-    st.header("📅 Recherche de commandes")
-    
-    # Sélection de la date
-    date_option = st.radio(
-        "Choisir la date",
-        ["Demain", "Date personnalisée"],
-        horizontal=True
-    )
-    
-    if date_option == "Date personnalisée":
-        date_recherche = st.date_input(
-            "Date de recherche",
-            value=datetime.now() + timedelta(days=1)
-        )
-        date_str = date_recherche.strftime("%d/%m/%Y")
-    else:
-        demain = datetime.now() + timedelta(days=1)
-        date_str = demain.strftime("%d/%m/%Y")
-        st.info(f"📅 Date sélectionnée: {date_str}")
-
-with col2:
-    st.header("⚙️ Options")
     show_all = st.checkbox("Afficher toutes les commandes", value=True)
     show_desadv = st.checkbox("DESADV à faire uniquement", value=True)
+
+with col2:
     show_sup_850 = st.checkbox("Montants > 850€", value=True)
+    show_totaux = st.checkbox("Total par client", value=True)
 
 st.markdown("---")
 
@@ -65,14 +58,14 @@ st.markdown("---")
 if st.button("🚀 Lancer le scraping", type="primary", use_container_width=True):
     
     if not username or not password:
-        st.error("❌ Veuillez saisir vos identifiants")
+        st.error("❌ Veuillez configurer vos identifiants dans les variables d'environnement")
     else:
         with st.spinner("🔄 Connexion et extraction en cours..."):
             # Créer le scraper
             scraper = AuchanScraper(username, password)
             
-            # Lancer le scraping
-            resultats = scraper.scraper_commandes(date_str)
+            # Lancer le scraping (sans paramètre de date)
+            resultats = scraper.scraper_commandes()
             
             # Afficher les résultats
             if resultats["success"]:
@@ -97,7 +90,7 @@ if st.button("🚀 Lancer le scraping", type="primary", use_container_width=True
                         st.download_button(
                             "📥 Télécharger CSV",
                             csv,
-                            f"commandes_{date_str.replace('/', '-')}.csv",
+                            f"commandes_semaine_24-30_nov.csv",
                             "text/csv"
                         )
                     else:

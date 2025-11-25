@@ -2,3 +2,5 @@ streamlit
 pandas
 playwright
 python-dateutil
+pytesseract
+Pillow

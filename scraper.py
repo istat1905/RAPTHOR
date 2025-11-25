@@ -33,52 +33,58 @@ class AuchanScraper:
             
             try:
                 # 1. Aller directement sur la page de connexion @GP
-                print(f"📡 Connexion à la page de login @GP...")
+                print(f"📡 [1/7] Connexion à la page de login @GP...")
                 page.goto("https://accounts.atgpedi.net/login", timeout=30000)
                 page.wait_for_load_state('networkidle')
                 time.sleep(2)
+                print("✅ Page de login chargée")
                 
                 # 2. Remplir les champs de connexion
-                print("🔑 Saisie des identifiants...")
+                print("🔑 [2/7] Saisie des identifiants...")
                 page.fill('input[name="_username"]', self.username)
                 page.fill('input[name="_password"]', self.password)
+                print("✅ Identifiants saisis")
                 
                 # 3. Cliquer sur le bouton "Se connecter"
-                print("✅ Validation de la connexion...")
+                print("✅ [3/7] Validation de la connexion...")
                 page.click('button:has-text("Se connecter")')
                 
                 # Attendre que la connexion soit effective
-                page.wait_for_load_state('networkidle')
+                page.wait_for_load_state('networkidle', timeout=30000)
                 time.sleep(3)
+                print(f"✅ Redirection effectuée vers: {page.url}")
                 
                 # 4. Vérifier qu'on est bien connecté
                 if "login" in page.url.lower():
                     raise Exception("Échec de connexion - Vérifiez vos identifiants")
                 
-                print("✅ Connexion réussie!")
+                print("✅ [4/7] Connexion réussie!")
                 
                 # 5. Aller sur la page Commandes
-                print("📋 Navigation vers la liste des commandes...")
+                print("📋 [5/7] Navigation vers la liste des commandes...")
                 page.goto(f"{self.base_url}/gui.php?page=documents_commandes_liste", timeout=30000)
-                page.wait_for_load_state('networkidle')
+                page.wait_for_load_state('networkidle', timeout=30000)
                 time.sleep(3)
+                print("✅ Page commandes chargée")
                 
                 # 6. Vérifier s'il y a des filtres actifs et les effacer si nécessaire
-                print("🔍 Vérification des filtres...")
+                print("🔍 [6/7] Vérification des filtres...")
                 try:
                     # Chercher le bouton "Effacer" (gomme)
                     eraser_button = page.locator('.fa.fa-eraser').first
                     if eraser_button.is_visible(timeout=2000):
                         print("🧹 Filtres détectés, effacement en cours...")
                         eraser_button.click()
-                        page.wait_for_load_state('networkidle')
+                        page.wait_for_load_state('networkidle', timeout=15000)
                         time.sleep(2)
                         print("✅ Filtres effacés")
-                except:
-                    print("ℹ️ Pas de filtres actifs")
+                    else:
+                        print("ℹ️ Pas de bouton effacer visible")
+                except Exception as e:
+                    print(f"ℹ️ Pas de filtres actifs ou erreur: {e}")
                 
                 # 7. Extraire les données du tableau (toutes les commandes visibles)
-                print("📊 Extraction des commandes...")
+                print("📊 [7/7] Extraction des commandes...")
                 commandes = self._extraire_commandes(page)
                 
                 if commandes:

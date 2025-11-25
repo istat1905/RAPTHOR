@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 from scraper import AuchanScraper
-import os
 
 # Configuration de la page
 st.set_page_config(
@@ -19,15 +18,25 @@ st.markdown("---")
 with st.sidebar:
     st.header("🔐 Identifiants Auchan")
     
-    # Utiliser les variables d'environnement de Render
-    username = os.getenv("auchan_username")
-    password = os.getenv("auchan_password")
+    # Utiliser les secrets Streamlit ou variables d'environnement
+    import os
     
-    if username and password:
-        st.success("✅ Identifiants configurés")
+    # Essayer d'abord les secrets Streamlit, puis les variables d'environnement
+    username = None
+    password = None
+    
+    if "auchan_username" in st.secrets and "auchan_password" in st.secrets:
+        username = st.secrets["auchan_username"]
+        password = st.secrets["auchan_password"]
+        st.success("✅ Identifiants chargés depuis les secrets")
+    elif os.getenv("auchan_username") and os.getenv("auchan_password"):
+        username = os.getenv("auchan_username")
+        password = os.getenv("auchan_password")
+        st.success("✅ Identifiants chargés depuis l'environnement")
     else:
-        st.error("❌ Variables d'environnement manquantes sur Render")
-        st.info("Configurez auchan_username et auchan_password dans Environment sur Render")
+        username = st.text_input("Identifiant", key="username")
+        password = st.text_input("Mot de passe", type="password", key="password")
+        st.info("💡 Configurez vos secrets pour plus de sécurité")
 
 # Zone principale
 st.header("📅 Commandes de la semaine")
@@ -51,12 +60,21 @@ if st.button("🚀 Lancer le scraping", type="primary", use_container_width=True
     if not username or not password:
         st.error("❌ Veuillez configurer vos identifiants dans les variables d'environnement")
     else:
+        # Créer une zone pour les logs
+        log_placeholder = st.empty()
+        progress_bar = st.progress(0)
+        
         with st.spinner("🔄 Connexion et extraction en cours..."):
             # Créer le scraper
             scraper = AuchanScraper(username, password)
             
             # Lancer le scraping (sans paramètre de date)
-            resultats = scraper.scraper_commandes()
+            try:
+                resultats = scraper.scraper_commandes()
+                progress_bar.progress(100)
+            except Exception as e:
+                st.error(f"❌ Erreur critique: {str(e)}")
+                resultats = {"success": False, "message": str(e)}
             
             # Afficher les résultats
             if resultats["success"]:

@@ -1,6 +1,3 @@
-FROM python:3.11-slim
-
-# Installer dépendances système pour Playwright + Tesseract
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-fra \
@@ -15,16 +12,7 @@ RUN apt-get update && apt-get install -y \
     libxcomposite1 \
     libxrandr2 \
     libxdamage1 \
-    libpango1.0-0 \
+    libpango-1.0-0 \
     libxshmfence1 \
     libgbm-dev \
     && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY . .
-
-CMD ["python", "app.py"]

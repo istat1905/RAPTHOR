@@ -2,7 +2,3 @@ streamlit
 pandas
 playwright
 python-dateutil
-pytesseract
-Pillow
-easyocr
-torch

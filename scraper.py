@@ -85,6 +85,15 @@ class AuchanScraper:
                 
                 # 7. Extraire les données du tableau (toutes les commandes visibles)
                 print("📊 [7/7] Extraction des commandes...")
+                
+                # DEBUG: Prendre une capture d'écran de la page
+                try:
+                    screenshot_path = f"/tmp/page_commandes.png"
+                    page.screenshot(path=screenshot_path, full_page=True)
+                    print(f"📸 Capture d'écran sauvegardée: {screenshot_path}")
+                except Exception as e:
+                    print(f"⚠️ Impossible de prendre la capture: {e}")
+                
                 commandes = self._extraire_commandes(page)
                 
                 if commandes:
@@ -125,13 +134,14 @@ class AuchanScraper:
         commandes = []
         
         try:
-            # Attendre que le tableau soit présent (classe "vL" avec L minuscule!)
-            page.wait_for_selector('table.vL tbody tr', timeout=10000)
+            # Attendre que le tableau soit présent (classe "VL" avec V et L majuscules!)
+            print("Attente du tableau...")
+            page.wait_for_selector('table.VL tbody tr', timeout=10000)
             
             # Extraire toutes les lignes du tableau (tbody tr)
-            rows = page.locator('table.vL tbody tr').all()
+            rows = page.locator('table.VL tbody tr').all()
             
-            print(f"Nombre de lignes trouvées dans le tableau: {len(rows)}")
+            print(f"✓ Nombre de lignes trouvées dans le tableau: {len(rows)}")
             
             for i, row in enumerate(rows):
                 try:

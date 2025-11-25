@@ -9,13 +9,3 @@ services:
     envVars:
       - key: PLAYWRIGHT_BROWSERS_PATH
         value: /ms-playwright
-      - key: STREAMLIT_SERVER_HEADLESS
-        value: "true"
-      - key: STREAMLIT_SERVER_ENABLECORS
-        value: "false"
-      - key: STREAMLIT_SERVER_PORT
-        value: "8080"
-      - key: auchan_username
-        value: "<TON_USERNAME>"
-      - key: auchan_password
-        value: "<TON_PASSWORD>"

@@ -1,254 +1,150 @@
-from playwright.sync_api import sync_playwright
-from datetime import datetime, timedelta
+import streamlit as st
 import pandas as pd
-import time
+from datetime import datetime, timedelta
+from scraper import AuchanScraper
 
-class AuchanScraper:
-    def __init__(self, username, password):
-        self.username = username
-        self.password = password
-        self.base_url = "https://auchan.atgpedi.net"
+# Configuration de la page
+st.set_page_config(
+    page_title="RAPTHOR - Auchan Scraper",
+    page_icon="🦅",
+    layout="wide"
+)
+
+# Titre
+st.title("🦅 RAPTHOR - Automatisation Auchan")
+st.markdown("---")
+
+# Sidebar pour les identifiants
+with st.sidebar:
+    st.header("🔐 Identifiants Auchan")
+    
+    # Utiliser les secrets Streamlit ou variables d'environnement
+    import os
+    
+    # Essayer d'abord les secrets Streamlit, puis les variables d'environnement
+    username = None
+    password = None
+    
+    username = os.getenv("auchan_username")
+password = os.getenv("auchan_password")
+
+    if username and password:
+        st.success("✅ Identifiants configurés")
+    else:
+        st.error("❌ Variables d'environnement manquantes sur Render")
+        st.info("Configurez auchan_username et auchan_password dans Environment sur Render")
+
+# Zone principale
+st.header("📅 Commandes de la semaine")
+st.info("📆 Semaine en cours : du 24/11/2025 au 30/11/2025")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    show_all = st.checkbox("Afficher toutes les commandes", value=True)
+    show_desadv = st.checkbox("DESADV à faire uniquement", value=True)
+
+with col2:
+    show_sup_850 = st.checkbox("Montants > 850€", value=True)
+    show_totaux = st.checkbox("Total par client", value=True)
+
+st.markdown("---")
+
+# Bouton de lancement
+if st.button("🚀 Lancer le scraping", type="primary", use_container_width=True):
+    
+    if not username or not password:
+        st.error("❌ Veuillez configurer vos identifiants dans les variables d'environnement")
+    else:
+        # Créer une zone pour les logs
+        log_placeholder = st.empty()
+        progress_bar = st.progress(0)
         
-    def scraper_commandes(self):
-        """
-        Se connecte au site Auchan et récupère les commandes de la semaine en cours
-        """
-        resultats = {
-            "success": False,
-            "message": "",
-            "commandes": [],
-            "desadv_a_faire": [],
-            "commandes_sup_850": [],
-            "total_par_client": {}
-        }
-        
-        with sync_playwright() as p:
-            # Lancer Firefox en mode headless (plus stable que Chromium sur serveurs)
-            browser = p.firefox.launch(
-                headless=True
-            )
-            context = browser.new_context()
-            page = context.new_page()
+        with st.spinner("🔄 Connexion et extraction en cours..."):
+            # Créer le scraper
+            scraper = AuchanScraper(username, password)
             
+            # Lancer le scraping (sans paramètre de date)
             try:
-                # 1. Aller directement sur la page de connexion @GP
-                print(f"📡 [1/7] Connexion à la page de login @GP...")
-                page.goto("https://accounts.atgpedi.net/login", timeout=30000)
-                page.wait_for_load_state('networkidle')
-                time.sleep(2)
-                print("✅ Page de login chargée")
-                
-                # 2. Remplir les champs de connexion
-                print("🔑 [2/7] Saisie des identifiants...")
-                page.fill('input[name="_username"]', self.username)
-                page.fill('input[name="_password"]', self.password)
-                print("✅ Identifiants saisis")
-                
-                # 3. Cliquer sur le bouton "Se connecter"
-                print("✅ [3/7] Validation de la connexion...")
-                page.click('button:has-text("Se connecter")')
-                
-                # Attendre que la connexion soit effective
-                page.wait_for_load_state('networkidle', timeout=30000)
-                time.sleep(3)
-                print(f"✅ Redirection effectuée vers: {page.url}")
-                
-                # 4. Vérifier qu'on est bien connecté
-                if "login" in page.url.lower():
-                    raise Exception("Échec de connexion - Vérifiez vos identifiants")
-                
-                print("✅ [4/7] Connexion réussie!")
-                
-                # 5. Aller sur la page Commandes
-                print("📋 [5/7] Navigation vers la liste des commandes...")
-                page.goto(f"{self.base_url}/gui.php?page=documents_commandes_liste", timeout=30000)
-                page.wait_for_load_state('networkidle', timeout=30000)
-                time.sleep(3)
-                print("✅ Page commandes chargée")
-                
-                # 6. Vérifier s'il y a des filtres actifs et les effacer si nécessaire
-                print("🔍 [6/7] Vérification des filtres...")
-                try:
-                    # Chercher le bouton "Effacer" (gomme)
-                    eraser_button = page.locator('.fa.fa-eraser').first
-                    if eraser_button.is_visible(timeout=2000):
-                        print("🧹 Filtres détectés, effacement en cours...")
-                        eraser_button.click()
-                        page.wait_for_load_state('networkidle', timeout=15000)
-                        time.sleep(2)
-                        print("✅ Filtres effacés")
-                    else:
-                        print("ℹ️ Pas de bouton effacer visible")
-                except Exception as e:
-                    print(f"ℹ️ Pas de filtres actifs ou erreur: {e}")
-                
-                # 7. Extraire les données du tableau (toutes les commandes visibles)
-                print("📊 [7/7] Extraction des commandes...")
-                
-                # DEBUG: Prendre une capture d'écran de la page
-                try:
-                    screenshot_path = f"/tmp/page_commandes.png"
-                    page.screenshot(path=screenshot_path, full_page=True)
-                    print(f"📸 Capture d'écran sauvegardée: {screenshot_path}")
-                except Exception as e:
-                    print(f"⚠️ Impossible de prendre la capture: {e}")
-                
-                commandes = self._extraire_commandes(page)
-                
-                if commandes:
-                    # Filtrer pour garder seulement la semaine en cours (24/11 au 30/11)
-                    commandes_semaine = self._filtrer_semaine_courante(commandes)
-                    
-                    resultats["commandes"] = commandes_semaine
-                    resultats["desadv_a_faire"] = self._filtrer_desadv(commandes_semaine)
-                    resultats["commandes_sup_850"] = self._filtrer_montant_sup_850(commandes_semaine)
-                    resultats["total_par_client"] = self._calculer_total_par_client(commandes_semaine)
-                    resultats["success"] = True
-                    resultats["message"] = f"{len(commandes_semaine)} commandes trouvées pour la semaine du 24/11 au 30/11"
-                    print(f"✅ {len(commandes_semaine)} commandes extraites pour cette semaine")
-                else:
-                    resultats["message"] = "Aucune commande trouvée"
-                    print("⚠️ Aucune commande trouvée")
-                
+                resultats = scraper.scraper_commandes()
+                progress_bar.progress(100)
             except Exception as e:
-                resultats["message"] = f"Erreur: {str(e)}"
-                print(f"❌ Erreur durant le scraping: {e}")
-                
-                # Prendre une capture d'écran pour déboguer
-                try:
-                    screenshot_path = f"/tmp/error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-                    page.screenshot(path=screenshot_path)
-                    print(f"📸 Capture d'écran sauvegardée: {screenshot_path}")
-                except:
-                    pass
-                
-            finally:
-                context.close()
-                browser.close()
-        
-        return resultats
-    
-    def _extraire_commandes(self, page):
-        """Extrait les données du tableau de commandes"""
-        commandes = []
-        
-        try:
-            # Attendre que le tableau soit présent (classe "VL" avec V et L majuscules!)
-            print("Attente du tableau...")
-            page.wait_for_selector('table.VL tbody tr', timeout=10000)
+                st.error(f"❌ Erreur critique: {str(e)}")
+                resultats = {"success": False, "message": str(e)}
             
-            # Extraire toutes les lignes du tableau (tbody tr)
-            rows = page.locator('table.VL tbody tr').all()
-            
-            print(f"✓ Nombre de lignes trouvées dans le tableau: {len(rows)}")
-            
-            for i, row in enumerate(rows):
-                try:
-                    cells = row.locator('td').all()
-                    
-                    # Vérifier qu'on a assez de colonnes (ignorer les lignes vides ou de header)
-                    if len(cells) < 7:
-                        continue
-                    
-                    # Colonnes: Numéro, Client, Livrer à, Création le, Livrer le, GLN, Montant, Statut
-                    numero = cells[0].inner_text().strip()
-                    client = cells[1].inner_text().strip()
-                    livrer_a = cells[2].inner_text().strip()
-                    creation = cells[3].inner_text().strip()
-                    livraison = cells[4].inner_text().strip()
-                    gln = cells[5].inner_text().strip()
-                    montant_str = cells[6].inner_text().strip()
-                    
-                    # Le statut et les icônes sont dans la dernière colonne
-                    statut_cell = cells[7].inner_text().strip() if len(cells) > 7 else ""
-                    
-                    # Parser le montant
-                    montant = self._parse_montant(montant_str)
-                    
-                    # Vérifier si DESADV nécessaire (chercher dans toute la ligne ou dans les attributs)
-                    row_html = row.inner_html()
-                    desadv = "desadv" in row_html.lower()
-                    
-                    commande = {
-                        "numero": numero,
-                        "client": client,
-                        "livrer_a": livrer_a,
-                        "date_creation": creation,
-                        "date_livraison": livraison,
-                        "gln": gln,
-                        "montant": montant,
-                        "statut": statut_cell,
-                        "desadv": desadv
-                    }
-                    
-                    commandes.append(commande)
-                    
-                except Exception as e:
-                    print(f"  ⚠️ Erreur ligne {i+1}: {e}")
-                    continue
-        
-        except Exception as e:
-            print(f"❌ Erreur extraction tableau: {e}")
-        
-        return commandes
-    
-    def _filtrer_semaine_courante(self, commandes):
-        """Filtre les commandes pour garder seulement celles de la semaine du 24/11 au 30/11"""
-        commandes_semaine = []
-        
-        # Dates de la semaine courante
-        debut_semaine = datetime(2025, 11, 24)
-        fin_semaine = datetime(2025, 11, 30)
-        
-        for cmd in commandes:
-            try:
-                # Parser la date de livraison (format DD/MM/YYYY)
-                date_liv_str = cmd["date_livraison"]
-                date_liv = datetime.strptime(date_liv_str, "%d/%m/%Y")
+            # Afficher les résultats
+            if resultats["success"]:
+                st.success(f"✅ {resultats['message']}")
                 
-                # Vérifier si la date est dans la semaine
-                if debut_semaine <= date_liv <= fin_semaine:
-                    commandes_semaine.append(cmd)
-            except:
-                # Si erreur de parsing, on garde quand même la commande
-                commandes_semaine.append(cmd)
-        
-        print(f"📅 {len(commandes_semaine)} commandes filtrées pour la semaine du 24/11 au 30/11")
-        return commandes_semaine
-    
-    def _parse_montant(self, montant_str):
-        """Convertit un montant string en float"""
-        try:
-            # Enlever les espaces, € et remplacer , par .
-            montant_clean = montant_str.replace('€', '').replace(' ', '').replace(',', '.').strip()
-            if not montant_clean:
-                return 0.0
-            return float(montant_clean)
-        except Exception as e:
-            return 0.0
-    
-    def _filtrer_desadv(self, commandes):
-        """Filtre les commandes qui nécessitent un DESADV"""
-        return [cmd for cmd in commandes if cmd.get("desadv", False)]
-    
-    def _filtrer_montant_sup_850(self, commandes):
-        """Filtre les commandes avec montant > 850€"""
-        return [cmd for cmd in commandes if cmd["montant"] > 850]
-    
-    def _calculer_total_par_client(self, commandes):
-        """Calcule le total des commandes par client"""
-        totaux = {}
-        for cmd in commandes:
-            client = cmd["client"]
-            if client in totaux:
-                totaux[client]["montant_total"] += cmd["montant"]
-                totaux[client]["nb_commandes"] += 1
-                totaux[client]["commandes"].append(cmd["numero"])
+                # Onglets pour différentes vues
+                tab1, tab2, tab3, tab4 = st.tabs([
+                    "📋 Toutes les commandes", 
+                    "📦 DESADV à faire", 
+                    "💰 Commandes > 850€",
+                    "👥 Total par client"
+                ])
+                
+                with tab1:
+                    if show_all and resultats["commandes"]:
+                        st.subheader(f"📋 {len(resultats['commandes'])} commandes trouvées")
+                        df = pd.DataFrame(resultats["commandes"])
+                        st.dataframe(df, use_container_width=True)
+                        
+                        # Bouton téléchargement
+                        csv = df.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            "📥 Télécharger CSV",
+                            csv,
+                            f"commandes_semaine_24-30_nov.csv",
+                            "text/csv"
+                        )
+                    else:
+                        st.info("Aucune commande à afficher")
+                
+                with tab2:
+                    if show_desadv and resultats["desadv_a_faire"]:
+                        st.subheader(f"📦 {len(resultats['desadv_a_faire'])} DESADV à faire")
+                        df_desadv = pd.DataFrame(resultats["desadv_a_faire"])
+                        st.dataframe(df_desadv, use_container_width=True)
+                        
+                        st.metric("Nombre de DESADV", len(resultats["desadv_a_faire"]))
+                    else:
+                        st.success("✅ Aucun DESADV à faire")
+                
+                with tab3:
+                    if show_sup_850 and resultats["commandes_sup_850"]:
+                        st.subheader(f"💰 {len(resultats['commandes_sup_850'])} commandes > 850€")
+                        df_850 = pd.DataFrame(resultats["commandes_sup_850"])
+                        st.dataframe(df_850, use_container_width=True)
+                        
+                        total = sum(cmd["montant"] for cmd in resultats["commandes_sup_850"])
+                        st.metric("Montant total", f"{total:,.2f} €")
+                    else:
+                        st.info("Aucune commande > 850€")
+                
+                with tab4:
+                    if resultats["total_par_client"]:
+                        st.subheader("👥 Récapitulatif par client")
+                        
+                        for client, info in resultats["total_par_client"].items():
+                            with st.expander(f"**{client}** - {info['nb_commandes']} commande(s)"):
+                                col_a, col_b = st.columns(2)
+                                with col_a:
+                                    st.metric("Montant total", f"{info['montant_total']:,.2f} €")
+                                with col_b:
+                                    st.metric("Nombre de commandes", info['nb_commandes'])
+                                
+                                st.write("**Numéros de commandes:**")
+                                st.write(", ".join(info['commandes']))
+                                
+                                if info['montant_total'] > 850:
+                                    st.warning("⚠️ Total > 850€")
+                    else:
+                        st.info("Aucun client trouvé")
+                        
             else:
-                totaux[client] = {
-                    "montant_total": cmd["montant"],
-                    "nb_commandes": 1,
-                    "commandes": [cmd["numero"]]
-                }
-        
-        return totaux
+                st.error(f"❌ {resultats['message']}")
+
+# Footer
+st.markdown("---")
+st.caption("🦅 RAPTHOR v1.0 - Automatisation Auchan | Développé avec Streamlit & Playwright")

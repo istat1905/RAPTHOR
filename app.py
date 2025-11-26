@@ -25,14 +25,18 @@ with st.sidebar:
     username = None
     password = None
     
-    username = os.getenv("auchan_username")
-    password = os.getenv("auchan_password")
-
-    if username and password:
-        st.success("✅ Identifiants configurés")
+    if "auchan_username" in st.secrets and "auchan_password" in st.secrets:
+        username = st.secrets["auchan_username"]
+        password = st.secrets["auchan_password"]
+        st.success("✅ Identifiants chargés depuis les secrets")
+    elif os.getenv("auchan_username") and os.getenv("auchan_password"):
+        username = os.getenv("auchan_username")
+        password = os.getenv("auchan_password")
+        st.success("✅ Identifiants chargés depuis l'environnement")
     else:
-        st.error("❌ Variables d'environnement manquantes sur Render")
-        st.info("Configurez auchan_username et auchan_password dans Environment sur Render")
+        username = st.text_input("Identifiant", key="username")
+        password = st.text_input("Mot de passe", type="password", key="password")
+        st.info("💡 Configurez vos secrets pour plus de sécurité")
 
 # Zone principale
 st.header("📅 Commandes de la semaine")

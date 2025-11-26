@@ -1,9 +1,10 @@
-# Dockerfile corrigé pour Render avec Streamlit
+# Dockerfile final Auchan Scraper avec Playwright + Chromium + Streamlit
+
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Installer dépendances système pour Playwright
+# Installer les dépendances système pour Playwright
 RUN apt-get update && apt-get install -y \
     curl \
     gnupg \
@@ -20,17 +21,17 @@ RUN apt-get update && apt-get install -y \
     libpangocairo-1.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Installer les dépendances Python
+# Copier et installer les dépendances Python
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Installer Playwright Chromium
+# Installer Playwright et Chromium avec toutes les dépendances Linux
 RUN python -m playwright install --with-deps chromium
 
-# Copier le reste des fichiers
+# Copier le reste des fichiers de l'application
 COPY . .
 
-# Exposer le port (facultatif)
+# Définir le port pour Streamlit
 ENV PORT 8501
 
 # Commande pour lancer Streamlit avec expansion de variable

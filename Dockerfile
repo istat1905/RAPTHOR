@@ -1,5 +1,5 @@
 # Utiliser une image avec Playwright pré-installé (version mise à jour)
-FROM mcr.microsoft.com/playwright/python:v1.56.0-jammy
+FROM mcr.microsoft.com/playwright/python:v1.56.1-jammy
 
 # Définir le répertoire de travail
 WORKDIR /app

@@ -1,12 +1,11 @@
 services:
   - type: web
     name: auchan-scraper
-    env: python
+    env: docker
     plan: free
-    buildCommand: pip install -r requirements.txt && python -m playwright install --with-deps chromium
-    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0
+    dockerfilePath: Dockerfile
     envVars:
-  - key: auchan_username
-    fromSecret: auchan_username
-  - key: auchan_password
-    fromSecret: auchan_password
+      - key: auchan_username
+        fromSecret: auchan_username
+      - key: auchan_password
+        fromSecret: auchan_password

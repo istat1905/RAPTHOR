@@ -2,16 +2,28 @@ from playwright.sync_api import sync_playwright
 from datetime import datetime, timedelta
 import pandas as pd
 import time
+import logging
+import os
+
+# Configuration du logging pour le débug
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class AuchanScraper:
+    """
+    Classe pour automatiser la connexion et l'extraction de données sur la plateforme Auchan EDI.
+    Utilise Playwright en mode synchrone (pour simplicité avec Streamlit sans async).
+    """
+    
+    BASE_URL = "https://auchan.atgpedi.net" # URL de base
+    LOGIN_URL = "https://accounts.atgpedi.net/login" # URL de connexion spécifique
+    
     def __init__(self, username, password):
         self.username = username
         self.password = password
-        self.base_url = "https://auchan.atgpedi.net"
-        
+
     def scraper_commandes(self):
         """
-        Se connecte au site Auchan et récupère les commandes de la semaine en cours
+        Se connecte au site Auchan et récupère les commandes de la semaine en cours.
         """
         resultats = {
             "success": False,
@@ -22,8 +34,10 @@ class AuchanScraper:
             "total_par_client": {}
         }
         
+        # Le mode synchrone est utilisé ici, mais l'asynchrone est souvent préférable avec Streamlit
+        # Néanmoins, nous gardons votre choix initial.
         with sync_playwright() as p:
-            # Lancer Firefox en mode headless (plus stable que Chromium sur serveurs)
+            # Lancer Firefox en mode headless (parfait pour Docker/Render)
             browser = p.firefox.launch(
                 headless=True
             )
@@ -32,66 +46,73 @@ class AuchanScraper:
             
             try:
                 # 1. Aller directement sur la page de connexion @GP
-                print(f"📡 [1/7] Connexion à la page de login @GP...")
-                page.goto("https://accounts.atgpedi.net/login", timeout=30000)
+                logging.info(f"📡 [1/7] Connexion à la page de login @GP...")
+                page.goto(self.LOGIN_URL, timeout=30000)
                 page.wait_for_load_state('networkidle')
                 time.sleep(2)
-                print("✅ Page de login chargée")
+                logging.info("✅ Page de login chargée")
                 
                 # 2. Remplir les champs de connexion
-                print("🔑 [2/7] Saisie des identifiants...")
+                logging.info("🔑 [2/7] Saisie des identifiants...")
                 page.fill('input[name="_username"]', self.username)
                 page.fill('input[name="_password"]', self.password)
-                print("✅ Identifiants saisis")
+                logging.info("✅ Identifiants saisis")
                 
                 # 3. Cliquer sur le bouton "Se connecter"
-                print("✅ [3/7] Validation de la connexion...")
-                page.click('button:has-text("Se connecter")')
+                logging.info("✅ [3/7] Validation de la connexion...")
+                # Sélecteur plus précis: 'button:has-text("Se connecter")'
+                page.click('button:has-text("Se connecter")', timeout=10000)
                 
                 # Attendre que la connexion soit effective
                 page.wait_for_load_state('networkidle', timeout=30000)
                 time.sleep(3)
-                print(f"✅ Redirection effectuée vers: {page.url}")
+                logging.info(f"✅ Redirection effectuée vers: {page.url}")
                 
                 # 4. Vérifier qu'on est bien connecté
                 if "login" in page.url.lower():
-                    raise Exception("Échec de connexion - Vérifiez vos identifiants")
+                    # Tenter de voir si un message d'erreur est présent
+                    error_message = page.locator('div[role="alert"]').inner_text() if page.locator('div[role="alert"]').is_visible() else "Réessayez plus tard."
+                    raise Exception(f"Échec de connexion - Vérifiez vos identifiants. Message: {error_message}")
                 
-                print("✅ [4/7] Connexion réussie!")
+                logging.info("✅ [4/7] Connexion réussie!")
                 
                 # 5. Aller sur la page Commandes
-                print("📋 [5/7] Navigation vers la liste des commandes...")
-                page.goto(f"{self.base_url}/gui.php?page=documents_commandes_liste", timeout=30000)
+                logging.info("📋 [5/7] Navigation vers la liste des commandes...")
+                page.goto(f"{self.BASE_URL}/gui.php?page=documents_commandes_liste", timeout=30000)
                 page.wait_for_load_state('networkidle', timeout=30000)
                 time.sleep(3)
-                print("✅ Page commandes chargée")
+                logging.info("✅ Page commandes chargée")
                 
                 # 6. Vérifier s'il y a des filtres actifs et les effacer si nécessaire
-                print("🔍 [6/7] Vérification des filtres...")
+                logging.info("🔍 [6/7] Vérification des filtres...")
                 try:
                     # Chercher le bouton "Effacer" (gomme)
+                    # S'assurer que le sélecteur '.fa.fa-eraser' est correct
                     eraser_button = page.locator('.fa.fa-eraser').first
                     if eraser_button.is_visible(timeout=2000):
-                        print("🧹 Filtres détectés, effacement en cours...")
+                        logging.info("🧹 Filtres détectés, effacement en cours...")
                         eraser_button.click()
                         page.wait_for_load_state('networkidle', timeout=15000)
                         time.sleep(2)
-                        print("✅ Filtres effacés")
+                        logging.info("✅ Filtres effacés")
                     else:
-                        print("ℹ️ Pas de bouton effacer visible")
+                        logging.info("ℹ️ Pas de bouton effacer visible")
                 except Exception as e:
-                    print(f"ℹ️ Pas de filtres actifs ou erreur: {e}")
+                    logging.info(f"ℹ️ Pas de filtres actifs ou erreur lors de la vérification: {e}")
                 
                 # 7. Extraire les données du tableau (toutes les commandes visibles)
-                print("📊 [7/7] Extraction des commandes...")
+                logging.info("📊 [7/7] Extraction des commandes...")
                 
                 # DEBUG: Prendre une capture d'écran de la page
                 try:
-                    screenshot_path = f"/tmp/page_commandes.png"
+                    # Rendre le chemin dynamique et sûr pour Streamlit
+                    screenshot_dir = os.path.join(os.getcwd(), "screenshots")
+                    os.makedirs(screenshot_dir, exist_ok=True)
+                    screenshot_path = os.path.join(screenshot_dir, f"page_commandes_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
                     page.screenshot(path=screenshot_path, full_page=True)
-                    print(f"📸 Capture d'écran sauvegardée: {screenshot_path}")
+                    logging.info(f"📸 Capture d'écran sauvegardée: {screenshot_path}")
                 except Exception as e:
-                    print(f"⚠️ Impossible de prendre la capture: {e}")
+                    logging.warning(f"⚠️ Impossible de prendre la capture: {e}")
                 
                 commandes = self._extraire_commandes(page)
                 
@@ -99,26 +120,29 @@ class AuchanScraper:
                     # Filtrer pour garder seulement la semaine en cours (24/11 au 30/11)
                     commandes_semaine = self._filtrer_semaine_courante(commandes)
                     
+                    # Remplir le dictionnaire de résultats
                     resultats["commandes"] = commandes_semaine
                     resultats["desadv_a_faire"] = self._filtrer_desadv(commandes_semaine)
                     resultats["commandes_sup_850"] = self._filtrer_montant_sup_850(commandes_semaine)
                     resultats["total_par_client"] = self._calculer_total_par_client(commandes_semaine)
                     resultats["success"] = True
                     resultats["message"] = f"{len(commandes_semaine)} commandes trouvées pour la semaine du 24/11 au 30/11"
-                    print(f"✅ {len(commandes_semaine)} commandes extraites pour cette semaine")
+                    logging.info(f"✅ {len(commandes_semaine)} commandes extraites pour cette semaine")
                 else:
                     resultats["message"] = "Aucune commande trouvée"
-                    print("⚠️ Aucune commande trouvée")
+                    logging.warning("⚠️ Aucune commande trouvée")
                 
             except Exception as e:
-                resultats["message"] = f"Erreur: {str(e)}"
-                print(f"❌ Erreur durant le scraping: {e}")
+                resultats["message"] = f"Erreur critique de scraping: {str(e)}"
+                logging.error(f"❌ Erreur durant le scraping: {e}")
                 
-                # Prendre une capture d'écran pour déboguer
+                # Prendre une capture d'écran pour déboguer l'erreur
                 try:
-                    screenshot_path = f"/tmp/error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                    screenshot_dir = os.path.join(os.getcwd(), "screenshots")
+                    os.makedirs(screenshot_dir, exist_ok=True)
+                    screenshot_path = os.path.join(screenshot_dir, f"error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
                     page.screenshot(path=screenshot_path)
-                    print(f"📸 Capture d'écran sauvegardée: {screenshot_path}")
+                    logging.error(f"📸 Capture d'écran d'erreur sauvegardée: {screenshot_path}")
                 except:
                     pass
                 
@@ -134,23 +158,23 @@ class AuchanScraper:
         
         try:
             # Attendre que le tableau soit présent (classe "VL" avec V et L majuscules!)
-            print("Attente du tableau...")
+            logging.info("Attente du tableau...")
             page.wait_for_selector('table.VL tbody tr', timeout=10000)
             
             # Extraire toutes les lignes du tableau (tbody tr)
             rows = page.locator('table.VL tbody tr').all()
             
-            print(f"✓ Nombre de lignes trouvées dans le tableau: {len(rows)}")
+            logging.info(f"✓ Nombre de lignes trouvées dans le tableau: {len(rows)}")
             
             for i, row in enumerate(rows):
                 try:
                     cells = row.locator('td').all()
                     
-                    # Vérifier qu'on a assez de colonnes (ignorer les lignes vides ou de header)
+                    # Vérifier qu'on a assez de colonnes (7 colonnes de données + 1 colonne action)
                     if len(cells) < 7:
                         continue
                     
-                    # Colonnes: Numéro, Client, Livrer à, Création le, Livrer le, GLN, Montant, Statut
+                    # Colonnes: 0: Numéro, 1: Client, 2: Livrer à, 3: Création le, 4: Livrer le, 5: GLN, 6: Montant, 7: Statut/Actions
                     numero = cells[0].inner_text().strip()
                     client = cells[1].inner_text().strip()
                     livrer_a = cells[2].inner_text().strip()
@@ -159,15 +183,15 @@ class AuchanScraper:
                     gln = cells[5].inner_text().strip()
                     montant_str = cells[6].inner_text().strip()
                     
-                    # Le statut et les icônes sont dans la dernière colonne
-                    statut_cell = cells[7].inner_text().strip() if len(cells) > 7 else ""
+                    # Le statut est dans la 8ème cellule (index 7)
+                    statut_cell = cells[7].inner_text().strip() if len(cells) > 7 else "N/A"
                     
                     # Parser le montant
                     montant = self._parse_montant(montant_str)
                     
-                    # Vérifier si DESADV nécessaire (chercher dans toute la ligne ou dans les attributs)
-                    row_html = row.inner_html()
-                    desadv = "desadv" in row_html.lower()
+                    # Vérifier si DESADV nécessaire: On cherche la présence d'un lien "Préparer DESADV" dans la cellule d'action (index 7)
+                    # Ceci est plus fiable que de chercher dans tout le HTML de la ligne.
+                    desadv_needed = cells[7].locator('a:has-text("Préparer DESADV")').is_visible()
                     
                     commande = {
                         "numero": numero,
@@ -178,25 +202,25 @@ class AuchanScraper:
                         "gln": gln,
                         "montant": montant,
                         "statut": statut_cell,
-                        "desadv": desadv
+                        "desadv_necessaire": desadv_needed # Renommé pour plus de clarté
                     }
                     
                     commandes.append(commande)
                     
                 except Exception as e:
-                    print(f"  ⚠️ Erreur ligne {i+1}: {e}")
+                    logging.warning(f"  ⚠️ Erreur ligne {i+1}: {e}")
                     continue
         
         except Exception as e:
-            print(f"❌ Erreur extraction tableau: {e}")
+            logging.error(f"❌ Erreur extraction tableau: {e}")
         
         return commandes
     
     def _filtrer_semaine_courante(self, commandes):
-        """Filtre les commandes pour garder seulement celles de la semaine du 24/11 au 30/11"""
+        """Filtre les commandes pour garder seulement celles de la semaine du 24/11 au 30/11/2025 (basé sur date_livraison)."""
         commandes_semaine = []
         
-        # Dates de la semaine courante
+        # Dates de la semaine courante (basé sur le texte dans app.py)
         debut_semaine = datetime(2025, 11, 24)
         fin_semaine = datetime(2025, 11, 30)
         
@@ -206,37 +230,40 @@ class AuchanScraper:
                 date_liv_str = cmd["date_livraison"]
                 date_liv = datetime.strptime(date_liv_str, "%d/%m/%Y")
                 
-                # Vérifier si la date est dans la semaine
+                # Vérifier si la date est dans l'intervalle [début, fin]
                 if debut_semaine <= date_liv <= fin_semaine:
                     commandes_semaine.append(cmd)
-            except:
-                # Si erreur de parsing, on garde quand même la commande
-                commandes_semaine.append(cmd)
+            except ValueError:
+                # Si erreur de parsing de date, on l'ignore (ou on la garde selon la politique désirée, ici on ignore)
+                logging.warning(f"Date de livraison non valide: {cmd['date_livraison']} pour commande {cmd['numero']}")
+                continue
         
-        print(f"📅 {len(commandes_semaine)} commandes filtrées pour la semaine du 24/11 au 30/11")
+        logging.info(f"📅 {len(commandes_semaine)} commandes filtrées pour la semaine du 24/11 au 30/11")
         return commandes_semaine
     
     def _parse_montant(self, montant_str):
-        """Convertit un montant string en float"""
+        """Convertit un montant string en float (gestion des formats français: , comme décimal)."""
         try:
-            # Enlever les espaces, € et remplacer , par .
-            montant_clean = montant_str.replace('€', '').replace(' ', '').replace(',', '.').strip()
+            # Enlever les espaces, € et remplacer la virgule (décimale) par un point
+            montant_clean = montant_str.replace('€', '').replace(' ', '').replace('.', '').replace(',', '.').strip()
             if not montant_clean:
                 return 0.0
             return float(montant_clean)
         except Exception as e:
+            logging.error(f"Erreur de parsing du montant '{montant_str}': {e}")
             return 0.0
     
     def _filtrer_desadv(self, commandes):
-        """Filtre les commandes qui nécessitent un DESADV"""
-        return [cmd for cmd in commandes if cmd.get("desadv", False)]
+        """Filtre les commandes qui nécessitent un DESADV."""
+        # On utilise le champ 'desadv_necessaire' calculé dans _extraire_commandes
+        return [cmd for cmd in commandes if cmd.get("desadv_necessaire", False)]
     
     def _filtrer_montant_sup_850(self, commandes):
-        """Filtre les commandes avec montant > 850€"""
+        """Filtre les commandes avec montant > 850€."""
         return [cmd for cmd in commandes if cmd["montant"] > 850]
     
     def _calculer_total_par_client(self, commandes):
-        """Calcule le total des commandes par client"""
+        """Calcule le total des commandes par client."""
         totaux = {}
         for cmd in commandes:
             client = cmd["client"]

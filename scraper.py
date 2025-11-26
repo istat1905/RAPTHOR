@@ -23,10 +23,9 @@ class AuchanScraper:
         }
         
         with sync_playwright() as p:
-            # Lancer Chromium en mode headless pour Render.com
-            browser = p.chromium.launch(
-                headless=True,
-                args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+            # Lancer Firefox en mode headless (plus stable que Chromium sur serveurs)
+            browser = p.firefox.launch(
+                headless=True
             )
             context = browser.new_context()
             page = context.new_page()

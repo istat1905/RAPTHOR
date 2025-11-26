@@ -1,11 +1,12 @@
 services:
   - type: web
-    name: rapthor
-    env: docker
+    name: auchan-scraper
+    env: python
     plan: free
-    region: frankfurt
-    dockerfilePath: ./Dockerfile
-    healthCheckPath: /_stcore/health
+    buildCommand: pip install -r requirements.txt && python -m playwright install --with-deps chromium
+    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0
     envVars:
-      - key: PLAYWRIGHT_BROWSERS_PATH
-        value: /ms-playwright
+  - key: auchan_username
+    fromSecret: auchan_username
+  - key: auchan_password
+    fromSecret: auchan_password

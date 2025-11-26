@@ -10,6 +10,9 @@ COPY requirements.txt .
 # Installer les dépendances Python
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Installer Firefox explicitement
+RUN playwright install firefox
+
 # Copier le reste des fichiers de l'application
 COPY . .
 

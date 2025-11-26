@@ -4,3 +4,4 @@ playwright
 python-dateutil
 lxml
 playwright-stealth
+openpyxl

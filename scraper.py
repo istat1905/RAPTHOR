@@ -1,4 +1,3 @@
-# 4️⃣ scraper.py - version propre et indentée correctement
 from playwright.sync_api import sync_playwright
 import pandas as pd
 
@@ -10,15 +9,12 @@ def scraper_auchan(username, password):
 
         # Connexion SSO @GP
         page.click("a[href='call.php?call=base_sso_openid_connect_authentifier']")
-        page.wait_for_timeout(1500)
-
-        # Remplir login / mot de passe
         page.fill("input[name='username']", username)
         page.fill("input[name='password']", password)
         page.click("button[type='submit']")
         page.wait_for_load_state("networkidle")
 
-        # Aller dans Commandes
+        # Aller à Commandes
         page.click("a[href='gui.php?page=documents_commandes_liste']")
         page.wait_for_selector("table.VL")
 
@@ -31,7 +27,4 @@ def scraper_auchan(username, password):
                 data.append(cols)
 
         browser.close()
-
-        if data:
-            return pd.DataFrame(data)
-        return pd.DataFrame()
+        return pd.DataFrame(data)

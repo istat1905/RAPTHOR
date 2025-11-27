@@ -1,11 +1,11 @@
 services:
   - type: web
-    name: auchan-scraper
+    name: rapthor
     env: docker
     plan: free
-    dockerfilePath: Dockerfile
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /_stcore/health
     envVars:
-      - key: auchan_username
-        fromSecret: auchan_username
-      - key: auchan_password
-        fromSecret: auchan_password
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: /ms-playwright

@@ -1,0 +1,33 @@
+# Secrets locaux
+.streamlit/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.egg-info/
+*.egg
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Playwright
+.pytest_cache/
+
+# Temporary files
+/tmp/
+*.tmp
